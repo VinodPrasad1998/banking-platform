@@ -2,6 +2,7 @@ package com.nextgenbank.controller;
 
 import com.nextgenbank.entity.Customer;
 import com.nextgenbank.service.CustomerService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,18 +15,14 @@ public class CustomerController {
 
     public CustomerController(CustomerService customerService)
     {
+
         this.customerService=customerService;
     }
 
     @PostMapping
-    public String createCustomer(@RequestBody Customer customer)
+    public Customer createCustomer(@Valid @RequestBody Customer customer)
     {
-        System.out.println(customer.getFirstName());
-        System.out.println(customer.getLastName());
-        System.out.println(customer.getEmail());
-        System.out.println(customer.getMobileNumber());
-
-        return "Customer api is Working ";
+        return customerService.registerCustomer(customer);
     }
 
 }
