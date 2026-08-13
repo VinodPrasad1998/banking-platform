@@ -54,8 +54,8 @@ public class Customer {
 
     @NotBlank(message = "Email is Required")
     @Email(message = "Enter a Valid email")
+    @Column(unique = true,nullable = false)
     private String email;
-
 
     public Long getCustomerId() {
         return customerId;
