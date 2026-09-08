@@ -11,6 +11,12 @@ import com.nextgenbank.exception.CustomerNotFoundException;
 import com.nextgenbank.repository.AccountRepository;
 import com.nextgenbank.repository.CustomerRepository;
 import com.nextgenbank.service.AccountService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import com.nextgenbank.dto.AccountStatusRequest;
+import com.nextgenbank.exception.InvalidAccountStatusTransitionException;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -69,6 +75,79 @@ public class AccountServiceImpl implements AccountService {
                         ));
 
         return mapToResponse(account);
+    }
+
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AccountResponse> getAllAccounts(
+            int page,
+            int size,
+            String sortBy,
+            String direction) {
+
+        Sort sort = direction.equalsIgnoreCase("desc")
+                ? Sort.by(sortBy).descending()
+                : Sort.by(sortBy).ascending();
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<Account> accountPage =
+                accountRepository.findAll(pageable);
+
+        return accountPage.map(this::mapToResponse);
+    }
+
+
+    @Override
+    @Transactional
+    public AccountResponse updateAccountStatus(
+            Long accountId,
+            AccountStatusRequest request) {
+
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() ->
+                        new AccountNotFoundException(
+                                "Account not found with ID: " + accountId
+                        ));
+
+        AccountStatus currentStatus = account.getStatus();
+        AccountStatus requestedStatus = request.status();
+
+        if (!isValidStatusTransition(currentStatus, requestedStatus)) {
+
+            throw new InvalidAccountStatusTransitionException(
+                    "Invalid account status transition from "
+                            + currentStatus
+                            + " to "
+                            + requestedStatus
+            );
+        }
+
+        account.setStatus(requestedStatus);
+
+        Account updatedAccount = accountRepository.save(account);
+
+        return mapToResponse(updatedAccount);
+    }
+
+    private boolean isValidStatusTransition(
+            AccountStatus currentStatus,
+            AccountStatus requestedStatus) {
+
+        return switch (currentStatus) {
+
+            case ACTIVE ->
+                    requestedStatus == AccountStatus.BLOCKED
+                            || requestedStatus == AccountStatus.CLOSED;
+
+            case BLOCKED ->
+                    requestedStatus == AccountStatus.ACTIVE
+                            || requestedStatus == AccountStatus.CLOSED;
+
+            case CLOSED ->
+                    false;
+        };
     }
 
     private String generateUniqueAccountNumber() {

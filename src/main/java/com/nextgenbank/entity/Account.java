@@ -29,6 +29,9 @@ public class Account {
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal balance;
 
+    @Version
+    private Long version;
+
     @Column(nullable = false, length = 3)
     private String currency;
 
