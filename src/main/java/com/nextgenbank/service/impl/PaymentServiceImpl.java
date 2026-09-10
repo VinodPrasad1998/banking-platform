@@ -2,10 +2,10 @@ package com.nextgenbank.service.impl;
 
 import com.nextgenbank.dto.PaymentRequest;
 import com.nextgenbank.dto.PaymentResponse;
-import com.nextgenbank.dto.TransactionResponse;
 import com.nextgenbank.dto.TransferRequest;
 import com.nextgenbank.dto.TransferResponse;
 import com.nextgenbank.entity.Account;
+import com.nextgenbank.entity.AccountStatus;
 import com.nextgenbank.entity.Beneficiary;
 import com.nextgenbank.entity.BeneficiaryStatus;
 import com.nextgenbank.entity.Payment;
@@ -14,6 +14,7 @@ import com.nextgenbank.exception.AccountNotActiveException;
 import com.nextgenbank.exception.AccountNotFoundException;
 import com.nextgenbank.exception.BeneficiaryNotActiveException;
 import com.nextgenbank.exception.BeneficiaryNotFoundException;
+import com.nextgenbank.exception.IdempotencyKeyConflictException;
 import com.nextgenbank.exception.PaymentNotFoundException;
 import com.nextgenbank.repository.AccountRepository;
 import com.nextgenbank.repository.BeneficiaryRepository;
@@ -68,6 +69,12 @@ public class PaymentServiceImpl implements PaymentService {
                         .orElse(null);
 
         if (existingPayment != null) {
+
+            validateIdempotencyRequest(
+                    existingPayment,
+                    request
+            );
+
             return mapToResponse(existingPayment);
         }
 
@@ -81,7 +88,7 @@ public class PaymentServiceImpl implements PaymentService {
                                 ));
 
         if (sourceAccount.getStatus()
-                != com.nextgenbank.entity.AccountStatus.ACTIVE) {
+                != AccountStatus.ACTIVE) {
 
             throw new AccountNotActiveException(
                     "Payment is not allowed because source account status is "
@@ -149,6 +156,35 @@ public class PaymentServiceImpl implements PaymentService {
                 paymentRepository.save(payment);
 
         return mapToResponse(completedPayment);
+    }
+
+    private void validateIdempotencyRequest(
+            Payment existingPayment,
+            PaymentRequest request) {
+
+        boolean sameSourceAccount =
+                existingPayment.getSourceAccount()
+                        .getAccountId()
+                        .equals(request.sourceAccountId());
+
+        boolean sameBeneficiary =
+                existingPayment.getBeneficiary()
+                        .getBeneficiaryId()
+                        .equals(request.beneficiaryId());
+
+        boolean sameAmount =
+                existingPayment.getAmount()
+                        .compareTo(request.amount()) == 0;
+
+        if (!sameSourceAccount
+                || !sameBeneficiary
+                || !sameAmount) {
+
+            throw new IdempotencyKeyConflictException(
+                    "Idempotency key has already been used "
+                            + "with a different payment request."
+            );
+        }
     }
 
     @Override
